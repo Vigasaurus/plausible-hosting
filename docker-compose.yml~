@@ -1,0 +1,47 @@
+version: "3.3"
+services:
+  mail:
+    image: bytemark/smtp
+    restart: always:5
+
+  plausible_db:
+    image: postgres:latest # or 13
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    restart: always:5
+
+  plausible_events_db:
+    image: yandex/clickhouse-server:latest
+    volumes:
+      - event-data:/var/lib/clickhouse
+      - ./clickhouse/clickhouse-config.xml:/etc/clickhouse-server/config.d/docker_related_config.xml:ro
+      - ./clickhouse/clickhouse-user-config.xml:/etc/clickhouse-server/users.d/docker_related_user_config.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    restart: always:5
+
+
+  plausible:
+    image: plausible/analytics:dev
+    command: sh -c "sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh db init-admin && /entrypoint.sh run"
+    depends_on:
+      - plausible_db
+      - plausible_events_db
+      - mail
+    ports:
+      - 127.0.0.1:8000:8000
+    env_file:
+      - plausible-conf.env
+    restart: always:5
+
+volumes:
+  db-data:
+    driver: local
+  event-data:
+    driver: local
+  geoip:
+    driver: local
